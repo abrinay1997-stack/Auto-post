@@ -1,14 +1,13 @@
-import type { Handler } from '@netlify/functions'
 import { getDatabase } from '@netlify/database'
 import Anthropic from '@anthropic-ai/sdk'
 
 const db = getDatabase()
 
-const json = (statusCode: number, body: unknown) => ({
-  statusCode,
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify(body),
-})
+const json = (statusCode: number, body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status: statusCode,
+    headers: { 'content-type': 'application/json' },
+  })
 
 interface GeneratedPost {
   copy_text: string
@@ -18,14 +17,13 @@ interface GeneratedPost {
   hashtags?: string[]
 }
 
-export const handler: Handler = async (event) => {
-  if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'Método no soportado' })
+export default async (req: Request) => {
+  if (req.method !== 'POST') return json(405, { ok: false, error: 'Método no soportado' })
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return json(500, { ok: false, error: 'ANTHROPIC_API_KEY no configurada' })
 
-  const body = JSON.parse(event.body || '{}')
-  const { brand_id, brief, count = 10 } = body
+  const { brand_id, brief, count = 10 } = await req.json()
   if (!brand_id || !brief) return json(400, { ok: false, error: 'brand_id y brief son obligatorios' })
 
   const [brand] = await db.sql`SELECT * FROM brands WHERE id = ${brand_id}`

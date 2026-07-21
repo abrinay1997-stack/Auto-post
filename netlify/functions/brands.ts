@@ -1,19 +1,19 @@
-import type { Handler } from '@netlify/functions'
 import { getDatabase } from '@netlify/database'
 
 const db = getDatabase()
 
-const json = (statusCode: number, body: unknown) => ({
-  statusCode,
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify(body),
-})
+const json = (statusCode: number, body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status: statusCode,
+    headers: { 'content-type': 'application/json' },
+  })
 
-export const handler: Handler = async (event) => {
-  const id = event.queryStringParameters?.id
+export default async (req: Request) => {
+  const url = new URL(req.url)
+  const id = url.searchParams.get('id')
 
   try {
-    if (event.httpMethod === 'GET') {
+    if (req.method === 'GET') {
       if (id) {
         const [brand] = await db.sql`SELECT * FROM brands WHERE id = ${id}`
         if (!brand) return json(404, { ok: false, error: 'Marca no encontrada' })
@@ -23,9 +23,8 @@ export const handler: Handler = async (event) => {
       return json(200, { ok: true, brands })
     }
 
-    if (event.httpMethod === 'POST') {
-      const body = JSON.parse(event.body || '{}')
-      const { name, slug, voice_profile, visual_profile, audience, hashtag_sets } = body
+    if (req.method === 'POST') {
+      const { name, slug, voice_profile, visual_profile, audience, hashtag_sets } = await req.json()
       if (!name || !slug) return json(400, { ok: false, error: 'name y slug son obligatorios' })
 
       const [brand] = await db.sql`
@@ -36,10 +35,9 @@ export const handler: Handler = async (event) => {
       return json(201, { ok: true, brand })
     }
 
-    if (event.httpMethod === 'PUT') {
+    if (req.method === 'PUT') {
       if (!id) return json(400, { ok: false, error: 'Falta el parámetro id' })
-      const body = JSON.parse(event.body || '{}')
-      const { name, voice_profile, visual_profile, audience, hashtag_sets } = body
+      const { name, voice_profile, visual_profile, audience, hashtag_sets } = await req.json()
 
       const [brand] = await db.sql`
         UPDATE brands SET
