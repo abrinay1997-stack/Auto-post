@@ -7,12 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "tsc -b --noEmit"
+    "lint": "tsc -b --noEmit",
+    "sync-brands": "tsx scripts/sync-brands.ts"
   },
   "dependencies": {
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "@supabase/supabase-js": "^2.45.4"
+    "react-router-dom": "^7.1.1",
+    "@netlify/database": "^1.0.0"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.112.4",
@@ -23,6 +25,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^7.0.0",
-    "@netlify/functions": "^3.0.0"
+    "@netlify/functions": "^3.0.0",
+    "tsx": "^4.19.2"
   }
 }

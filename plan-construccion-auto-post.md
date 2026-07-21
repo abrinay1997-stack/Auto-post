@@ -3,6 +3,8 @@
 **Sistema de automatización de contenido y campañas para agencia de publicidad, con Claude como motor.**
 Versión 1.0 · Julio 2026 · Autor: Abrinay
 
+> **Actualización 2026-07-21:** se descartó Supabase como capa de datos. Se usa **Netlify DB (Postgres, powered by Neon) + Netlify Blobs**, nativo de la plataforma donde ya vive el resto del proyecto: se auto-provisiona en cada deploy, sin cuenta ni OAuth adicional, sin RLS (innecesario porque solo las Netlify Functions tocan la base). El resto de este documento queda actualizado en consecuencia; las menciones a Supabase son historia de la decisión original.
+
 ---
 
 ## 0. ¿Dónde se construye? Cowork vs. Claude Code
@@ -12,7 +14,7 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
 | | Claude Cowork | Claude Code |
 |---|---|---|
 | Propósito | Trabajo de conocimiento agéntico (investigar, redactar, operar con conectores MCP) | Programación agéntica: escribe, edita, prueba y hace commits de código real en tu repo |
-| Rol en Auto Post | **Operación diaria**: generar contenido con las skills de marca, usar Canva/Metricool/Meta Ads MCP mientras la app no existe (y después, como copiloto) | **Construcción**: crear el repo, las funciones serverless, el dashboard, el esquema de Supabase, los tests y los deploys |
+| Rol en Auto Post | **Operación diaria**: generar contenido con las skills de marca, usar Canva/Metricool/Meta Ads MCP mientras la app no existe (y después, como copiloto) | **Construcción**: crear el repo, las funciones serverless, el dashboard, el esquema de Netlify DB, los tests y los deploys |
 | Analogía | Tu asistente de agencia | Tu desarrollador |
 
 **Flujo recomendado:**
@@ -66,9 +68,9 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
 │                                               │                    │
 │                          ┌────────────────────┼─────────────┐      │
 │                          ▼                    ▼             ▼      │
-│                   SUPABASE (DB+Storage)  CLAUDE API   GEMINI API   │
-│                   marcas, posts, cola,   copy/análisis  imágenes   │
-│                   métricas, activos                                │
+│              NETLIFY DB + BLOBS         CLAUDE API   GEMINI API   │
+│              marcas, posts, cola,       copy/análisis  imágenes   │
+│              métricas, activos                                    │
 └───────────────────────────────┬───────────────────────────────────┘
                                 │ API/OAuth
                  ┌──────────────┼──────────────────┐
@@ -90,7 +92,7 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
 |---|---|---|
 | Frontend | React + Vite + Tailwind | Rápido, desplegable estático en Netlify |
 | Backend | Netlify Functions (TypeScript) | Tu perfil Node.js; credenciales en env vars |
-| Base de datos | Supabase (Postgres + Storage + RLS) | Ya lo tienes conectado; Storage para activos generados |
+| Base de datos | Netlify DB (Postgres, Neon) + Netlify Blobs | Nativo de Netlify: auto-provisión en el deploy, sin cuenta/OAuth adicional; Blobs para activos generados |
 | IA — texto/análisis | Claude API (Sonnet para volumen; Haiku para tareas simples) | Tu motor preferido |
 | IA — imágenes | Gemini API (Nano Banana) + Imagen 4 Fast como opción barata | ~$0.02–0.13/imagen |
 | Publicación | Postiz self-hosted (Docker en VPS Hetzner ~$4-8/mes u Oracle free tier) | OAuth oficial, API + MCP, 30+ redes |
@@ -100,7 +102,9 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
 | Emails | Resend (ya conectado) | Aprobaciones y reportes semanales a clientes |
 | CI/CD | GitHub → Netlify auto-deploy | Push a `main` = deploy |
 
-## 5. Modelo de Datos (Supabase)
+## 5. Modelo de Datos (Netlify DB)
+
+DDL versionado como migración en `netlify/database/migrations/20260721000000_initial_schema/migration.sql`, se aplica sola en cada deploy — no se activa RLS (innecesario: solo las Netlify Functions acceden a la base, nunca el frontend directo).
 
 ```sql
 -- Clientes/marcas
@@ -127,7 +131,7 @@ create table posts (
   copy_text text,
   copy_variants jsonb,        -- variantes A/B generadas
   image_prompt text,
-  image_urls text[],          -- Supabase Storage
+  image_urls text[],          -- Netlify Blobs
   scheduled_at timestamptz,
   postiz_post_id text,
   published_at timestamptz,
@@ -165,7 +169,7 @@ create table jobs (
 );
 ```
 
-Activa **Row-Level Security** en todas las tablas y usa la `service_role` key SOLO desde Netlify Functions (nunca en el frontend; el frontend usa la `anon` key con políticas restrictivas o, mejor en v1, todo pasa por las Functions).
+Todo el acceso a estas tablas ocurre exclusivamente desde Netlify Functions vía `@netlify/database` (`getDatabase()` / `getConnectionString()`); el frontend nunca se conecta directo a la base, por lo que no hace falta RLS ni una key separada para el cliente.
 
 ## 6. Estructura del Repositorio
 
@@ -177,21 +181,21 @@ auto-post/
 ├── .env.example               # Nombres de variables SIN valores (el real nunca se commitea)
 ├── src/                       # Frontend React
 │   ├── pages/                 # Dashboard, Brands, Pipeline, Calendar, Metrics
-│   ├── components/
-│   └── lib/supabase.ts
-├── netlify/functions/
-│   ├── generate-batch.ts      # Claude: genera N posts para una marca
-│   ├── generate-image.ts      # Gemini/Nano Banana desde image_prompt
-│   ├── approve-post.ts        # Cambia estado y dispara schedule
-│   ├── schedule-post.ts       # Llama API de Postiz
-│   ├── sync-metrics.ts        # Scheduled function (diaria): Metricool/Postiz → post_metrics
-│   ├── analyze-brand.ts       # Claude: posts virales → brand_insights
-│   └── weekly-report.ts       # Scheduled (lunes): reporte por Resend
+│   └── components/
+├── netlify/
+│   ├── functions/
+│   │   ├── generate-batch.ts      # Claude: genera N posts para una marca
+│   │   ├── generate-image.ts      # Gemini/Nano Banana desde image_prompt → Netlify Blobs
+│   │   ├── approve-post.ts        # Cambia estado y dispara schedule
+│   │   ├── schedule-post.ts       # Llama API de Postiz
+│   │   ├── sync-metrics.ts        # Scheduled function (diaria): Metricool/Postiz → post_metrics
+│   │   ├── analyze-brand.ts       # Claude: posts virales → brand_insights
+│   │   └── weekly-report.ts       # Scheduled (lunes): reporte por Resend
+│   └── database/migrations/       # Migraciones SQL de Netlify DB, se aplican solas en cada deploy
 ├── brands/                    # Identidad de marca versionada (fuente de verdad)
 │   ├── _TEMPLATE/brand.md     # Plantilla de skill de marca
-│   └── cliente-x/brand.md     # Se sincroniza a Supabase con un script
+│   └── cliente-x/brand.md     # Se sincroniza a Netlify DB con un script
 ├── scripts/
-│   ├── seed-supabase.ts
 │   └── sync-brands.ts
 └── tests/
 ```
@@ -203,9 +207,6 @@ auto-post/
 ```
 ANTHROPIC_API_KEY=            # Claude API
 GEMINI_API_KEY=               # Imágenes
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=    # SOLO functions, marcar como "secret"
-SUPABASE_ANON_KEY=            # frontend
 POSTIZ_API_URL=               # https://postiz.tudominio.com/api
 POSTIZ_API_KEY=
 METRICOOL_USER_TOKEN=         # si usas su API además del MCP
@@ -213,8 +214,10 @@ RESEND_API_KEY=
 APP_PASSWORD_HASH=            # protección simple del dashboard en v1
 ```
 
+Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren variables de entorno manuales (`@netlify/database` resuelve la conexión sola).
+
 **Reglas de seguridad:**
-1. Nada de esto entra jamás al repo ni al bundle del frontend (solo variables `VITE_` públicas como `SUPABASE_URL`/`ANON_KEY`).
+1. Nada de esto entra jamás al repo ni al bundle del frontend.
 2. Tokens de Meta viven DENTRO de Postiz/Metricool vía OAuth — Auto Post nunca los toca ni los almacena.
 3. Marca las keys sensibles como *secret* en Netlify para que no aparezcan en logs.
 4. El dashboard en v1 se protege con contraseña (Netlify Identity, Basic Auth o un login simple contra `APP_PASSWORD_HASH`); no lo dejes público.
@@ -231,21 +234,21 @@ APP_PASSWORD_HASH=            # protección simple del dashboard en v1
 - **Criterio de éxito**: un lote semanal completo generado en <1 hora con calidad aprobable.
 
 ### Fase 0-B — Fundación técnica (Semana 1–2, en Claude Code)
-- [ ] Crear repo privado `auto-post` en GitHub; inicializar Vite+React+TS+Tailwind y `netlify/functions`.
-- [ ] Escribir `CLAUDE.md` con la arquitectura de este documento.
-- [ ] Crear proyecto Supabase, aplicar el esquema de §5 como migración, activar RLS.
-- [ ] Conectar repo a Netlify, configurar variables de entorno, deploy "hello world" de una function que llama a Claude API.
-- [ ] Levantar Postiz en el VPS (Docker Compose), conectar por OAuth las cuentas IG/FB de UN cliente piloto, verificar publicación de prueba desde su API.
-- **Entregable**: URL de Netlify viva + Postiz publicando un post de prueba vía API.
+- [x] Crear repo privado `auto-post` en GitHub; inicializar Vite+React+TS+Tailwind y `netlify/functions`.
+- [x] Escribir `CLAUDE.md` con la arquitectura de este documento.
+- [x] Migración inicial de Netlify DB escrita (esquema de §5, sin RLS) — se aplica sola en el primer deploy.
+- [x] Conectar repo a Netlify (auto-post-abrinay.netlify.app, deploy continuo confirmado); pendiente cargar `ANTHROPIC_API_KEY` para probar `/api/health` en vivo.
+- [ ] Levantar Postiz en el VPS (Docker Compose), conectar por OAuth las cuentas IG/FB de UN cliente piloto, verificar publicación de prueba desde su API. (Se deja para cuando haya cliente piloto listo.)
+- **Entregable**: URL de Netlify viva ✅ + Postiz publicando un post de prueba vía API (pendiente).
 
 ### Fase 1 — Identidad de marca en la app (Semana 2–3)
-- [ ] CRUD de marcas en el dashboard (crear/editar `voice_profile`, `visual_profile`, `audience`, hashtags).
-- [ ] Script `sync-brands.ts`: `brands/*/brand.md` ⇄ Supabase.
-- [ ] Función `generate-batch.ts` v1: recibe `brand_id` + brief → Claude devuelve N posts (copy + `image_prompt` + plataformas + hashtags) en JSON → inserta en `posts` con estado `draft`.
-- **Criterio de aceptación**: dado un brief de 3 líneas, se generan 10 borradores coherentes con la voz de la marca en <2 min.
+- [x] CRUD de marcas en el dashboard: `netlify/functions/brands.ts` (GET/POST/PUT) + página `src/pages/Brands.tsx` (crear/listar; edición de voice/visual/audience pendiente de pulir).
+- [x] Script `sync-brands.ts`: `brands/*/brand.md` ⇄ Netlify DB.
+- [x] Función `generate-batch.ts` v1: recibe `brand_id` + brief → Claude devuelve N posts (copy + `image_prompt` + plataformas + hashtags) en JSON → inserta en `posts` con estado `draft`. (Código listo, pendiente probar en vivo con `ANTHROPIC_API_KEY`.)
+- **Criterio de aceptación**: dado un brief de 3 líneas, se generan 10 borradores coherentes con la voz de la marca en <2 min. (Pendiente de validar en vivo.)
 
 ### Fase 2 — Generación multimedia por lotes (Semana 3–4)
-- [ ] `generate-image.ts`: toma `image_prompt` + `visual_profile` (colores, estilo) → Gemini/Nano Banana → guarda en Supabase Storage → estado `pending_approval`.
+- [ ] `generate-image.ts`: toma `image_prompt` + `visual_profile` (colores, estilo) → Gemini/Nano Banana → guarda en Netlify Blobs → estado `pending_approval`.
 - [ ] Vista Kanban del pipeline con preview de imagen + copy editable inline.
 - [ ] Botones Aprobar / Regenerar copy / Regenerar imagen / Descartar.
 - [ ] Generación de variantes A/B de copy por post.
@@ -290,7 +293,7 @@ Meta Ads escritura asistida (campañas en PAUSED desde insights), ElevenLabs par
 - Qué formatos/temas/horarios funcionan:
 ```
 
-Este mismo archivo sirve como **skill en Cowork** (Fase 0-A) y como **contexto en Supabase** para las functions — una sola fuente de verdad.
+Este mismo archivo sirve como **skill en Cowork** (Fase 0-A) y como **contexto en Netlify DB** para las functions — una sola fuente de verdad.
 
 ## 10. Costos Estimados Mensuales (5 clientes)
 
@@ -300,7 +303,7 @@ Este mismo archivo sirve como **skill en Cowork** (Fase 0-A) y como **contexto e
 | Imágenes (~400–600/mes) | $10–40 |
 | VPS Postiz (Hetzner) | $4–8 (o $0 en Oracle free tier) |
 | Netlify | $0 (free tier alcanza en v1) |
-| Supabase | $0–25 (free tier al inicio) |
+| Netlify DB + Blobs | Incluido en el plan de Netlify (free tier al inicio) |
 | Metricool | $0 (free) → $18–45 al escalar |
 | Dominio | ~$1/mes (ya tienes GoDaddy) |
 | **Total** | **~$35–180/mes** |
@@ -313,19 +316,17 @@ Este mismo archivo sirve como **skill en Cowork** (Fase 0-A) y como **contexto e
 | Rechazo de calidad por clientes | Human-in-the-loop obligatorio + skill de marca con ejemplos reales |
 | Sobre-ingeniería antes de facturar | Fase 0-A opera en Cowork desde el día 1 |
 | Fuga de credenciales | §7 completo; OAuth siempre; nada en el repo |
-| Postiz caído (VPS) | Backups semanales del volumen Docker; los posts quedan en Supabase y se re-programan |
+| Postiz caído (VPS) | Backups semanales del volumen Docker; los posts quedan en Netlify DB y se re-programan |
 | Costos de imagen se disparan | Imagen 4 Fast (~$0.02) para volumen; Nano Banana solo para piezas clave |
 
 ## 12. Primeros Prompts para Claude Code (copiar/pegar)
 
-**Sesión 1 (Fase 0-B):**
-> Lee el archivo plan-construccion-auto-post.md. Inicializa el proyecto Auto Post: Vite + React + TypeScript + Tailwind, carpeta netlify/functions con una función de prueba `health.ts` que llama a Claude API usando ANTHROPIC_API_KEY de process.env, netlify.toml configurado, y un CLAUDE.md que resuma la arquitectura, el esquema de base de datos y los estados del pipeline según el plan. Crea también .env.example y el .gitignore correcto.
+**Sesión 1 (Fase 0-B):** ✅ hecho — scaffold Vite+React+TS+Tailwind, `netlify/functions/health.ts`, `netlify.toml`, `CLAUDE.md`, `.env.example`/`.gitignore`.
 
-**Sesión 2:**
-> Crea la migración SQL de Supabase con las tablas brands, posts, post_metrics, brand_insights y jobs según la sección 5 del plan, con RLS activado, y el cliente tipado en src/lib/supabase.ts.
+**Sesión 2:** ✅ hecho — migración inicial de Netlify DB (`netlify/database/migrations/20260721000000_initial_schema/migration.sql`) con las tablas brands, posts, post_metrics, brand_insights y jobs según la sección 5 del plan (sin RLS: solo las Functions acceden a la base).
 
 **Sesión 3:**
-> Implementa netlify/functions/generate-batch.ts: recibe brand_id y brief, carga el perfil de la marca desde Supabase, construye el prompt para Claude pidiendo respuesta SOLO en JSON con un array de posts (copy, copy_variants, image_prompt, platform, hashtags), valida el JSON e inserta en la tabla posts con status draft y un batch_id común.
+> Implementa netlify/functions/generate-batch.ts: recibe brand_id y brief, carga el perfil de la marca desde Netlify DB (vía `@netlify/database`), construye el prompt para Claude pidiendo respuesta SOLO en JSON con un array de posts (copy, copy_variants, image_prompt, platform, hashtags), valida el JSON e inserta en la tabla posts con status draft y un batch_id común.
 
 …y así sucesivamente, una función por sesión, siguiendo las fases.
 
