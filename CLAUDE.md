@@ -30,6 +30,8 @@ Frontend (Netlify, React+Vite+Tailwind)
 ## Esquema de base de datos (Netlify DB)
 Migraciones en `netlify/database/migrations/`, se aplican solas en cada deploy. Tablas: `brands`, `posts`, `post_metrics`, `brand_insights`, `jobs` (DDL en `netlify/database/migrations/20260721000000_initial_schema/migration.sql`). Acceso solo desde Netlify Functions vía `@netlify/database` (`getDatabase()` / `getConnectionString()`); el frontend nunca habla directo con la base.
 
+**Convención obligatoria**: toda function que use `@netlify/database` debe escribirse en formato v2 (`export default async (req: Request) => new Response(...)`), NUNCA en formato clásico `export const handler: Handler = async (event) => {...}` — el formato clásico corre en modo compatibilidad Lambda y Netlify no le inyecta la connection string (ver `.claude/errors-learned.md`, entrada 2026-07-21).
+
 ## Variables de entorno
 Ver `.env.example`. Nunca se commitean valores reales. Solo las prefijadas `VITE_` son públicas (van al bundle del frontend).
 
