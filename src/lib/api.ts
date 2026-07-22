@@ -64,4 +64,9 @@ export const api = {
     request<{ post: Post }>('/regenerate-copy', { method: 'POST', body: JSON.stringify({ post_id }) }).then(
       (d) => d.post,
     ),
+  schedulePost: (post_id: string, scheduled_at: string) =>
+    request<{ post: Post }>('/schedule-post', {
+      method: 'POST',
+      body: JSON.stringify({ post_id, scheduled_at }),
+    }).then((d) => d.post),
 }

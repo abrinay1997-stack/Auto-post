@@ -255,11 +255,11 @@ Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren var
 - **Criterio**: lote completo (copy+imagen) de 10 posts listo para revisión en <10 min de cómputo. (Pendiente de validar en vivo con las API keys.)
 
 ### Fase 3 — Programación y publicación (Semana 5–6)
-- [ ] `approve-post.ts` + `schedule-post.ts`: al aprobar, se envía a Postiz con fecha/hora (sugerida por los mejores horarios de `brand_insights`).
-- [ ] Vista calendario mensual por marca.
-- [ ] Webhook/polling de Postiz → actualizar a `published` con `published_at`.
-- [ ] Manejo de errores y reintentos; respetar límite IG (100 posts/24h — irrelevante a tu volumen, pero valida).
-- **Criterio**: post aprobado en dashboard aparece publicado en IG del cliente piloto sin tocar nada más.
+- [x] "Aprobar" ya lo cubre `posts.ts` PATCH (Fase 2); `schedule-post.ts` toma un post `approved` + fecha/hora, mapea `post.platform` a `brand.postiz_integration_ids` y llama a Postiz (`POST {POSTIZ_API_URL}/public/v1/posts`). Sugerencia automática de horario desde `brand_insights` queda pendiente para cuando haya datos de Fase 4.
+- [x] Vista calendario mensual por marca (`src/pages/Calendar.tsx`): grilla del mes con posts programados/publicados, lista de aprobados pendientes de programar con selector de fecha/hora.
+- [x] `postiz-webhook.ts`: recibe notificación de Postiz (post publicado/fallido) → actualiza `published`/`failed` con `published_at`. Pendiente configurar la URL del webhook en Postiz una vez esté el VPS.
+- [x] Manejo de errores básico: si Postiz no responde OK, el post se queda en `approved` (no se pierde el estado) y se muestra el error.
+- **Criterio**: post aprobado en dashboard aparece publicado en IG del cliente piloto sin tocar nada más. (No probado en vivo — depende del VPS de Postiz, ver Fase 0-B.)
 
 ### Fase 4 — Métricas y análisis viral (Semana 7–8)
 - [ ] `sync-metrics.ts` (scheduled diaria): Metricool/Postiz → `post_metrics`.
