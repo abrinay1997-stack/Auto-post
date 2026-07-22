@@ -56,8 +56,14 @@ export default function Calendar() {
   const [brandId, setBrandId] = useState('')
   const [posts, setPosts] = useState<Post[]>([])
   const today = new Date()
-  const [year] = useState(today.getFullYear())
-  const [month] = useState(today.getMonth())
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth())
+
+  const goToMonth = (delta: number) => {
+    const next = new Date(year, month + delta, 1)
+    setYear(next.getFullYear())
+    setMonth(next.getMonth())
+  }
 
   useEffect(() => {
     api.listBrands().then((list) => {
@@ -118,7 +124,23 @@ export default function Calendar() {
       )}
 
       <div>
-        <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-2 capitalize">{monthLabel}</h2>
+        <div className="flex items-center gap-3 mb-2">
+          <button
+            onClick={() => goToMonth(-1)}
+            className="text-xs bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
+            aria-label="Mes anterior"
+          >
+            ← Anterior
+          </button>
+          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wide capitalize">{monthLabel}</h2>
+          <button
+            onClick={() => goToMonth(1)}
+            className="text-xs bg-slate-800 hover:bg-slate-700 rounded px-2 py-1"
+            aria-label="Mes siguiente"
+          >
+            Siguiente →
+          </button>
+        </div>
         <div className="grid grid-cols-7 gap-px bg-slate-800 border border-slate-800 rounded overflow-hidden text-xs">
           {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d) => (
             <div key={d} className="bg-slate-900 p-2 text-slate-500 text-center">
@@ -133,7 +155,11 @@ export default function Calendar() {
                   <p
                     key={post.id}
                     className={`truncate rounded px-1 ${
-                      post.status === 'published' ? 'bg-emerald-900 text-emerald-300' : 'bg-sky-900 text-sky-300'
+                      post.status === 'published'
+                        ? 'bg-emerald-900 text-emerald-300'
+                        : post.status === 'failed'
+                          ? 'bg-red-950 text-red-400'
+                          : 'bg-sky-900 text-sky-300'
                     }`}
                     title={post.copy_text}
                   >

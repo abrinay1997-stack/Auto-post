@@ -32,6 +32,7 @@ export interface Post {
   image_urls: string[] | null
   scheduled_at: string | null
   published_at: string | null
+  platform_results: { platform: string; success: boolean; postId?: string; error?: string }[] | null
   batch_id: string
   created_at: string
 }

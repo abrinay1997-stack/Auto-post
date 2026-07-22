@@ -26,6 +26,29 @@ export async function publishToFacebook(
   return { platform: 'facebook', success: true, postId: data.post_id ?? data.id }
 }
 
+// Instagram procesa el contenedor de media de forma asíncrona (descarga la imagen, la valida).
+// Publicar con media_publish antes de que status_code sea FINISHED devuelve error — hay que
+// esperar el resultado (polling), no basta con que la creación del contenedor haya respondido 200.
+async function waitForContainerReady(
+  containerId: string,
+  accessToken: string,
+  { attempts = 10, intervalMs = 1500 } = {},
+): Promise<{ ready: boolean; error?: string }> {
+  for (let i = 0; i < attempts; i++) {
+    const res = await fetch(
+      `${GRAPH_API_BASE}/${containerId}?fields=status_code&access_token=${accessToken}`,
+    )
+    const data = await res.json()
+    if (!res.ok) return { ready: false, error: data?.error?.message ?? JSON.stringify(data) }
+    if (data.status_code === 'FINISHED') return { ready: true }
+    if (data.status_code === 'ERROR' || data.status_code === 'EXPIRED') {
+      return { ready: false, error: `El contenedor de Instagram terminó en estado ${data.status_code}` }
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+  return { ready: false, error: 'Timeout esperando a que Instagram procese el contenedor de media' }
+}
+
 export async function publishToInstagram(
   igUserId: string,
   accessToken: string,
@@ -40,6 +63,11 @@ export async function publishToInstagram(
   const createData = await createRes.json()
   if (!createRes.ok) {
     return { platform: 'instagram', success: false, error: createData?.error?.message ?? JSON.stringify(createData) }
+  }
+
+  const ready = await waitForContainerReady(createData.id, accessToken)
+  if (!ready.ready) {
+    return { platform: 'instagram', success: false, error: ready.error ?? 'El contenedor de media no quedó listo' }
   }
 
   const publishRes = await fetch(`${GRAPH_API_BASE}/${igUserId}/media_publish`, {

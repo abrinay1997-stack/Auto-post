@@ -5,6 +5,7 @@ const COLUMNS: { status: PostStatus; label: string }[] = [
   { status: 'draft', label: 'Borrador' },
   { status: 'pending_approval', label: 'Pendiente de aprobación' },
   { status: 'approved', label: 'Aprobado' },
+  { status: 'failed', label: 'Fallidos' },
   { status: 'archived', label: 'Descartado' },
 ]
 
@@ -53,6 +54,20 @@ function PostCard({ post, onChange }: { post: Post; onChange: (post: Post) => vo
       <p className="text-xs text-slate-500">{post.platform?.join(', ')}</p>
       {error && <p className="text-xs text-red-400">{error}</p>}
 
+      {post.status === 'failed' && post.platform_results && (
+        <div className="text-xs bg-red-950/50 border border-red-900 rounded p-2 space-y-1">
+          {post.platform_results.map((r) => (
+            <p key={r.platform} className={r.success ? 'text-emerald-400' : 'text-red-400'}>
+              {r.platform}: {r.success ? `publicado (${r.postId})` : r.error}
+            </p>
+          ))}
+          <p className="text-slate-400">
+            Si alguna plataforma ya publicó, quita esa red de la lista de "platform" antes de reintentar para no
+            duplicar.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1">
         <button
           disabled={busy !== null}
@@ -74,7 +89,7 @@ function PostCard({ post, onChange }: { post: Post; onChange: (post: Post) => vo
             onClick={() => run('approve', () => api.updatePost(post.id, { status: 'approved' }))}
             className="text-xs bg-emerald-700 hover:bg-emerald-600 rounded px-2 py-1 disabled:opacity-50"
           >
-            Aprobar
+            {post.status === 'failed' ? 'Reintentar (volver a Aprobado)' : 'Aprobar'}
           </button>
         )}
         {post.status !== 'archived' && (

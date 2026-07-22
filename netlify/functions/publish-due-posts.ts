@@ -36,11 +36,20 @@ export default async () => {
 
       const allOk = results.every((r) => r.success)
       if (allOk) {
-        await db.sql`UPDATE posts SET status = 'published', published_at = now() WHERE id = ${post.id}`
+        await db.sql`
+          UPDATE posts SET status = 'published', published_at = now(), platform_results = ${JSON.stringify(results)}
+          WHERE id = ${post.id}
+        `
         published++
       } else {
+        // Fallo parcial (ej. Facebook publicó pero Instagram no): platform_results queda guardado
+        // para que el operador vea qué plataforma ya publicó antes de reintentar manualmente,
+        // y no vuelva a publicar por duplicado en la que sí funcionó.
         console.error(`Post ${post.id} falló al publicar:`, results.filter((r) => !r.success))
-        await db.sql`UPDATE posts SET status = 'failed' WHERE id = ${post.id}`
+        await db.sql`
+          UPDATE posts SET status = 'failed', platform_results = ${JSON.stringify(results)}
+          WHERE id = ${post.id}
+        `
         failed++
       }
     }
