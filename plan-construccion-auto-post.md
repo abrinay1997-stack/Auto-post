@@ -271,6 +271,9 @@ Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren var
 ### Fase 5 — v2 (backlog, no ahora)
 Meta Ads escritura asistida (campañas en PAUSED desde insights), ElevenLabs para voz de videos, portal de aprobación para clientes, multi-operador, Reels automatizados.
 
+### Fase 4.5 — Servidor MCP para Cowork (2026-07-22) ✅
+Adelantada del backlog a pedido del usuario: Auto Post expone `/api/mcp` como custom connector remoto (`list_brands`, `list_posts`, `get_post`, `update_post_status`), para que desde una conversación de Cowork se pueda traer contenido aprobado y pasarlo al conector de Meta Ads (que vive en Cowork, no en Auto Post) para armar campañas — siempre en PAUSED/manual, sin que Auto Post publique anuncios por su cuenta. Ver detalle en `CLAUDE.md` → "Servidor MCP".
+
 ## 9. Plantilla de Identidad de Marca (`brands/cliente/brand.md`)
 
 ```markdown

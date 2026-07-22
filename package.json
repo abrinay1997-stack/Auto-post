@@ -11,25 +11,27 @@
     "sync-brands": "tsx scripts/sync-brands.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.13.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@netlify/blobs": "^10.7.9",
+    "@netlify/database": "^1.0.0",
+    "bcryptjs": "^2.4.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.1.1",
-    "@netlify/database": "^1.0.0",
-    "@netlify/blobs": "^10.7.9",
-    "@google/genai": "^2.13.0",
-    "bcryptjs": "^2.4.3"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.112.4",
+    "@netlify/functions": "^3.0.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/bcryptjs": "^2.4.6",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2",
-    "vite": "^7.0.0",
-    "@netlify/functions": "^3.0.0",
     "tsx": "^4.19.2",
-    "@types/bcryptjs": "^2.4.6"
+    "typescript": "^7.0.2",
+    "vite": "^7.0.0"
   }
 }
