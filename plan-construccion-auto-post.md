@@ -248,11 +248,11 @@ Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren var
 - **Criterio de aceptación**: dado un brief de 3 líneas, se generan 10 borradores coherentes con la voz de la marca en <2 min. (Pendiente de validar en vivo.)
 
 ### Fase 2 — Generación multimedia por lotes (Semana 3–4)
-- [ ] `generate-image.ts`: toma `image_prompt` + `visual_profile` (colores, estilo) → Gemini/Nano Banana → guarda en Netlify Blobs → estado `pending_approval`.
-- [ ] Vista Kanban del pipeline con preview de imagen + copy editable inline.
-- [ ] Botones Aprobar / Regenerar copy / Regenerar imagen / Descartar.
-- [ ] Generación de variantes A/B de copy por post.
-- **Criterio**: lote completo (copy+imagen) de 10 posts listo para revisión en <10 min de cómputo.
+- [x] `generate-image.ts`: toma `image_prompt` + `visual_profile` (colores, estilo) → Gemini (`gemini-2.5-flash-image`) → guarda en Netlify Blobs (`images.ts` la sirve) → estado `pending_approval`. (Pendiente probar en vivo con `GEMINI_API_KEY`.)
+- [x] Vista Kanban del pipeline (`src/pages/Pipeline.tsx`) con preview de imagen + copy editable inline, columnas Borrador/Pendiente/Aprobado/Descartado.
+- [x] Botones Aprobar / Regenerar copy (`regenerate-copy.ts`) / Regenerar imagen / Descartar.
+- [ ] Generación de variantes A/B de copy por post — el campo `copy_variants` ya se genera y guarda, falta UI para elegir entre variantes (se deja para un pase de pulido).
+- **Criterio**: lote completo (copy+imagen) de 10 posts listo para revisión en <10 min de cómputo. (Pendiente de validar en vivo con las API keys.)
 
 ### Fase 3 — Programación y publicación (Semana 5–6)
 - [ ] `approve-post.ts` + `schedule-post.ts`: al aprobar, se envía a Postiz con fecha/hora (sugerida por los mejores horarios de `brand_insights`).

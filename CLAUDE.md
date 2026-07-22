@@ -42,5 +42,6 @@ Ver `.env.example`. Nunca se commitean valores reales. Solo las prefijadas `VITE
 
 ## Estado actual
 - Fase 0-B: ✅ completa. Sitio live en Netlify (auto-post-abrinay.netlify.app), repo conectado con deploy continuo, `/api/health` responde (pendiente solo cargar `ANTHROPIC_API_KEY`). Pendiente: Postiz en VPS (se deja para cuando haya cliente piloto listo).
-- Fase 1 en progreso: `netlify/functions/brands.ts` (CRUD), `netlify/functions/generate-batch.ts`, `scripts/sync-brands.ts`, routing del dashboard (`react-router-dom`) con páginas Dashboard/Brands/Pipeline/Calendar/Metrics (las últimas 3 son placeholders hasta sus fases).
-- Pendiente para completar Fase 1: probar generate-batch en vivo (requiere ANTHROPIC_API_KEY), pulir la página de Brands (edición de voice/visual/audience).
+- Fase 1: ✅ completa. `netlify/functions/brands.ts` (CRUD), `netlify/functions/generate-batch.ts`, `scripts/sync-brands.ts`, routing del dashboard (`react-router-dom`). CRUD de marcas probado en vivo end-to-end.
+- Fase 2: ✅ código completo. `generate-image.ts` (Gemini `gemini-2.5-flash-image` → Netlify Blobs), `images.ts` (sirve las imágenes por key), `posts.ts` (list + update status), `regenerate-copy.ts`, Kanban real en `src/pages/Pipeline.tsx` (generar lote, ver imagen, editar copy inline, aprobar/descartar/regenerar). Pendiente: probar generate-batch/generate-image en vivo (requieren `ANTHROPIC_API_KEY` y `GEMINI_API_KEY`), UI para elegir entre `copy_variants`.
+- Pendiente global: cargar `ANTHROPIC_API_KEY` y `GEMINI_API_KEY` en Netlify para validar el flujo completo en producción.
