@@ -4,6 +4,8 @@
 Versión 1.0 · Julio 2026 · Autor: Abrinay
 
 > **Actualización 2026-07-21:** se descartó Supabase como capa de datos. Se usa **Netlify DB (Postgres, powered by Neon) + Netlify Blobs**, nativo de la plataforma donde ya vive el resto del proyecto: se auto-provisiona en cada deploy, sin cuenta ni OAuth adicional, sin RLS (innecesario porque solo las Netlify Functions tocan la base). El resto de este documento queda actualizado en consecuencia; las menciones a Supabase son historia de la decisión original.
+>
+> **Actualización 2026-07-22:** se descartó Postiz/VPS como capa de publicación. La capacidad Always Free de Oracle resultó agotada en la región disponible (y la cuenta quedó limitada a 1 sola región), y el usuario decidió no pagar un VPS. Se reemplazó por **integración directa con la Graph API de Meta** desde las propias Netlify Functions — cero servidor adicional. Limitación aceptada: Instagram no soporta programación nativa vía API, así que una scheduled function propia (`publish-due-posts.ts`) publica en el momento programado para ambas plataformas. El usuario debe renovar el Page Access Token de Meta manualmente cada ~60 días. Las menciones a Postiz que quedan abajo son historia de la decisión original.
 
 ---
 
@@ -33,7 +35,7 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
 **Visión**: Auto Post es una aplicación web propia (repo privado en GitHub, desplegada en Netlify) donde:
 - Cada cliente tiene un **perfil de marca** persistente (voz, colores, público, ofertas, ejemplos).
 - Claude genera **copy por lotes** y Gemini/Nano Banana genera **imágenes on-brand**.
-- Un **pipeline con aprobación humana** programa y publica vía Postiz (OAuth oficial, sin riesgo de baneo).
+- Un **pipeline con aprobación humana** programa y publica directo vía la Graph API de Meta (Instagram/Facebook).
 - Un **dashboard** muestra todo el proceso: borrador → imagen → aprobación → programado → publicado → métricas.
 - Metricool/Graph API alimentan el **análisis de posts virales y métricas** que retroalimenta la generación.
 
@@ -61,7 +63,7 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
 │  ┌──────────────────┐              ┌──────────────────────────┐    │
 │  │ Dashboard React  │───llama────▶│ /api/generate  (Claude)   │    │
 │  │ - Kanban pipeline│              │ /api/image     (Gemini)   │    │
-│  │ - Perfiles marca │              │ /api/schedule  (Postiz)   │    │
+│  │ - Perfiles marca │              │ /api/schedule  (Meta)     │    │
 │  │ - Calendario     │              │ /api/metrics   (Metricool)│    │
 │  │ - Métricas       │              │ /api/analyze   (Claude)   │    │
 │  └──────────────────┘              └──────────┬───────────────┘    │
@@ -75,14 +77,14 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
                                 │ API/OAuth
                  ┌──────────────┼──────────────────┐
                  ▼              ▼                  ▼
-          POSTIZ (VPS)    METRICOOL MCP     META ADS MCP
-          publica en      métricas, posts   insights de
-          IG/FB/TikTok…   virales, horarios campañas
+       GRAPH API DE META  METRICOOL MCP     META ADS MCP
+       publica en         métricas, posts   insights de
+       Instagram/Facebook virales, horarios campañas
 ```
 
 **Principios de diseño:**
-- **Serverless-first**: Netlify Functions en TypeScript (tu stack Node.js). Sin servidor propio salvo Postiz.
-- **Postiz como capa de publicación**: nunca hablas directo con la Graph API para publicar; Postiz maneja OAuth, tokens y límites (100 posts/24h en IG).
+- **Serverless-first**: Netlify Functions en TypeScript (tu stack Node.js). Cero servidor propio — ni siquiera para publicar (ver actualización 2026-07-22).
+- **Meta directo como capa de publicación**: `netlify/functions/lib/meta.ts` llama la Graph API de Meta para Instagram/Facebook; tú generas y renuevas el Page Access Token manualmente cada ~60 días desde Meta for Developers.
 - **Claude como orquestador**: cada función que "piensa" (copy, análisis, briefs) llama a Claude API; las skills de marca viven como archivos de contexto versionados en el repo.
 - **Human-in-the-loop**: estado `pending_approval` obligatorio antes de `scheduled`.
 
@@ -95,8 +97,8 @@ Versión 1.0 · Julio 2026 · Autor: Abrinay
 | Base de datos | Netlify DB (Postgres, Neon) + Netlify Blobs | Nativo de Netlify: auto-provisión en el deploy, sin cuenta/OAuth adicional; Blobs para activos generados |
 | IA — texto/análisis | Claude API (Sonnet para volumen; Haiku para tareas simples) | Tu motor preferido |
 | IA — imágenes | Gemini API (Nano Banana) + Imagen 4 Fast como opción barata | ~$0.02–0.13/imagen |
-| Publicación | Postiz self-hosted (Docker en VPS Hetzner ~$4-8/mes u Oracle free tier) | OAuth oficial, API + MCP, 30+ redes |
-| Métricas | Metricool MCP (plan gratis para empezar) + Postiz analytics | Posts virales, mejores horarios, competidores |
+| Publicación | Graph API de Meta directo (Instagram/Facebook), sin servidor propio | Cero VPS; solo Instagram/Facebook importan en la práctica. Limitación: Instagram no soporta programación nativa vía API, la maneja `publish-due-posts.ts` |
+| Métricas | Metricool (requiere plan Advanced/Custom para acceso a API — bloqueado en free tier, ver §11) | Posts virales, mejores horarios, competidores |
 | Meta Ads | MCP oficial de Meta (si `is_ads_mcp_enabled`) o Pipeboard meta-ads-mcp | Insights y campañas en PAUSED |
 | Diseño asistido | Canva MCP (brand kits) | Variantes on-brand desde Cowork |
 | Emails | Resend (ya conectado) | Aprobaciones y reportes semanales a clientes |
@@ -169,6 +171,8 @@ create table jobs (
 );
 ```
 
+Este es el esquema inicial (migración `20260721000000_initial_schema`). Migraciones posteriores agregaron: `brands.metricool_blog_id` (Fase 4) y `brands.meta_page_id` / `meta_ig_user_id` / `meta_page_access_token` (Fase 3, reemplazo de Postiz — `postiz_integration_ids` y `posts.postiz_post_id` quedaron sin uso, no se borraron).
+
 Todo el acceso a estas tablas ocurre exclusivamente desde Netlify Functions vía `@netlify/database` (`getDatabase()` / `getConnectionString()`); el frontend nunca se conecta directo a la base, por lo que no hace falta RLS ni una key separada para el cliente.
 
 ## 6. Estructura del Repositorio
@@ -186,9 +190,11 @@ auto-post/
 │   ├── functions/
 │   │   ├── generate-batch.ts      # Claude: genera N posts para una marca
 │   │   ├── generate-image.ts      # Gemini/Nano Banana desde image_prompt → Netlify Blobs
-│   │   ├── approve-post.ts        # Cambia estado y dispara schedule
-│   │   ├── schedule-post.ts       # Llama API de Postiz
-│   │   ├── sync-metrics.ts        # Scheduled function (diaria): Metricool/Postiz → post_metrics
+│   │   ├── posts.ts               # Cambia estado (aprobar/descartar) — reemplaza approve-post.ts
+│   │   ├── schedule-post.ts       # Valida y marca 'scheduled', sin llamar nada externo
+│   │   ├── publish-due-posts.ts   # Scheduled (cada 10 min): publica vía lib/meta.ts cuando llega scheduled_at
+│   │   ├── lib/meta.ts            # Llamadas directas a la Graph API de Meta (Instagram/Facebook)
+│   │   ├── sync-metrics.ts        # Scheduled function (diaria): Metricool → post_metrics
 │   │   ├── analyze-brand.ts       # Claude: posts virales → brand_insights
 │   │   └── weekly-report.ts       # Scheduled (lunes): reporte por Resend
 │   └── database/migrations/       # Migraciones SQL de Netlify DB, se aplican solas en cada deploy
@@ -207,21 +213,21 @@ auto-post/
 ```
 ANTHROPIC_API_KEY=            # Claude API
 GEMINI_API_KEY=               # Imágenes
-POSTIZ_API_URL=               # https://postiz.tudominio.com/api
-POSTIZ_API_KEY=
-METRICOOL_USER_TOKEN=         # si usas su API además del MCP
+METRICOOL_USER_TOKEN=         # requiere plan Advanced/Custom de Metricool, ver §11
+METRICOOL_USER_ID=
 RESEND_API_KEY=
 APP_PASSWORD_HASH=            # protección simple del dashboard en v1
+APP_SESSION_SECRET=           # firma los tokens de sesión de /api/login
+MCP_API_TOKEN=                # credencial fija del servidor MCP (/api/mcp) para Cowork
 ```
 
-Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren variables de entorno manuales (`@netlify/database` resuelve la conexión sola).
+Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren variables de entorno manuales (`@netlify/database` resuelve la conexión sola). Las credenciales de Meta (`meta_page_id`, `meta_ig_user_id`, `meta_page_access_token`) NO son variables de entorno — viven por marca en la tabla `brands`, porque cada cliente tiene su propia página/cuenta de Meta.
 
 **Reglas de seguridad:**
 1. Nada de esto entra jamás al repo ni al bundle del frontend.
-2. Tokens de Meta viven DENTRO de Postiz/Metricool vía OAuth — Auto Post nunca los toca ni los almacena.
+2. El Page Access Token de Meta se genera manualmente en Meta for Developers y se guarda en la fila de la marca en `brands` — Auto Post nunca hace el flujo OAuth completo en v1, tú lo renuevas a mano cada ~60 días.
 3. Marca las keys sensibles como *secret* en Netlify para que no aparezcan en logs.
-4. El dashboard en v1 se protege con contraseña (Netlify Identity, Basic Auth o un login simple contra `APP_PASSWORD_HASH`); no lo dejes público.
-5. Postiz en el VPS: expón solo el puerto 443 tras Caddy/Nginx con SSL; base de datos y Redis solo en red interna de Docker (o Cloudflare Tunnel).
+4. El dashboard se protege con contraseña + token firmado (`APP_PASSWORD_HASH` + `APP_SESSION_SECRET`, ver `CLAUDE.md` → Autenticación); no lo dejes público.
 
 ## 8. Plan por Fases
 
@@ -237,9 +243,9 @@ Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren var
 - [x] Crear repo privado `auto-post` en GitHub; inicializar Vite+React+TS+Tailwind y `netlify/functions`.
 - [x] Escribir `CLAUDE.md` con la arquitectura de este documento.
 - [x] Migración inicial de Netlify DB escrita (esquema de §5, sin RLS) — se aplica sola en el primer deploy.
-- [x] Conectar repo a Netlify (auto-post-abrinay.netlify.app, deploy continuo confirmado); pendiente cargar `ANTHROPIC_API_KEY` para probar `/api/health` en vivo.
-- [ ] Levantar Postiz en el VPS (Docker Compose), conectar por OAuth las cuentas IG/FB de UN cliente piloto, verificar publicación de prueba desde su API. (Se deja para cuando haya cliente piloto listo.)
-- **Entregable**: URL de Netlify viva ✅ + Postiz publicando un post de prueba vía API (pendiente).
+- [x] Conectar repo a Netlify (auto-post-abrinay.netlify.app, deploy continuo confirmado); `ANTHROPIC_API_KEY` cargada y `/api/health` probado en vivo con éxito.
+- [x] ~~Levantar Postiz en el VPS~~ — descartado 2026-07-22 (capacidad Always Free agotada + usuario no quiso pagar VPS). Reemplazado por Graph API de Meta directo, ver Fase 3.
+- **Entregable**: URL de Netlify viva ✅ + generación de contenido probada en vivo con Claude real ✅.
 
 ### Fase 1 — Identidad de marca en la app (Semana 2–3)
 - [x] CRUD de marcas en el dashboard: `netlify/functions/brands.ts` (GET/POST/PUT) + página `src/pages/Brands.tsx` (crear/listar; edición de voice/visual/audience pendiente de pulir).
@@ -254,12 +260,12 @@ Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren var
 - [ ] Generación de variantes A/B de copy por post — el campo `copy_variants` ya se genera y guarda, falta UI para elegir entre variantes (se deja para un pase de pulido).
 - **Criterio**: lote completo (copy+imagen) de 10 posts listo para revisión en <10 min de cómputo. (Pendiente de validar en vivo con las API keys.)
 
-### Fase 3 — Programación y publicación (Semana 5–6)
-- [x] "Aprobar" ya lo cubre `posts.ts` PATCH (Fase 2); `schedule-post.ts` toma un post `approved` + fecha/hora, mapea `post.platform` a `brand.postiz_integration_ids` y llama a Postiz (`POST {POSTIZ_API_URL}/public/v1/posts`). Sugerencia automática de horario desde `brand_insights` queda pendiente para cuando haya datos de Fase 4.
+### Fase 3 — Programación y publicación (Semana 5–6) — rediseñada 2026-07-22, sin Postiz/VPS
+- [x] "Aprobar" ya lo cubre `posts.ts` PATCH (Fase 2); `schedule-post.ts` valida que el post esté `approved` y que la marca tenga `meta_page_id`/`meta_ig_user_id`/`meta_page_access_token` configurados, y marca `scheduled` — sin llamar nada externo todavía.
+- [x] `publish-due-posts.ts` (scheduled cada 10 min): busca posts `scheduled` con `scheduled_at` ya cumplido y los publica de verdad vía `lib/meta.ts` (Graph API de Meta), actualizando a `published`/`failed`. Necesario porque Instagram no soporta programación nativa vía API.
 - [x] Vista calendario mensual por marca (`src/pages/Calendar.tsx`): grilla del mes con posts programados/publicados, lista de aprobados pendientes de programar con selector de fecha/hora.
-- [x] `postiz-webhook.ts`: recibe notificación de Postiz (post publicado/fallido) → actualiza `published`/`failed` con `published_at`. Pendiente configurar la URL del webhook en Postiz una vez esté el VPS.
-- [x] Manejo de errores básico: si Postiz no responde OK, el post se queda en `approved` (no se pierde el estado) y se muestra el error.
-- **Criterio**: post aprobado en dashboard aparece publicado en IG del cliente piloto sin tocar nada más. (No probado en vivo — depende del VPS de Postiz, ver Fase 0-B.)
+- [x] Manejo de errores básico: si Meta responde error, el post pasa a `failed` y el detalle queda en los logs de la function (no se pierde el post).
+- **Criterio**: post aprobado en dashboard aparece publicado en IG del cliente piloto sin tocar nada más. (No probado en vivo — falta que el usuario cree una Meta App y genere el Page Access Token de un cliente piloto.)
 
 ### Fase 4 — Métricas y análisis viral (Semana 7–8)
 - [x] `sync-metrics.ts` (scheduled diaria, `0 6 * * *`): Metricool (`/explore/posts/{blogId}`, auth `X-Mc-Auth`) → `post_metrics`, matching por fecha de publicación. Requiere columna nueva `brands.metricool_blog_id` (migración `20260722000000_add_metricool_blog_id`). Endpoint/campos de Metricool no verificados en vivo — ajustar si la respuesta real difiere de lo documentado en su Swagger.
@@ -275,7 +281,7 @@ Meta Ads escritura asistida (campañas en PAUSED desde insights), ElevenLabs par
 Adelantada del backlog a pedido del usuario: Auto Post expone `/api/mcp` como custom connector remoto (`list_brands`, `list_posts`, `get_post`, `update_post_status`), para que desde una conversación de Cowork se pueda traer contenido aprobado y pasarlo al conector de Meta Ads (que vive en Cowork, no en Auto Post) para armar campañas — siempre en PAUSED/manual, sin que Auto Post publique anuncios por su cuenta. Ver detalle en `CLAUDE.md` → "Servidor MCP".
 
 ### Pendiente — Pulido UX/UI (2026-07-22, feedback del usuario, deliberadamente pospuesto)
-El usuario probó el dashboard y encontró varios puntos de fricción reales. Se deja anotado para un pase dedicado DESPUÉS de terminar Postiz y Metricool (decisión explícita del usuario: primero cerrar la construcción, después pulir UX/UI):
+El usuario probó el dashboard y encontró varios puntos de fricción reales. Se deja anotado para un pase dedicado DESPUÉS de terminar la integración con Meta y decidir el tema de Metricool (decisión explícita del usuario: primero cerrar la construcción, después pulir UX/UI):
 - **Marcas**: no hay forma de editar ni borrar una marca desde el dashboard (solo crear). El campo "slug" no tiene explicación visible para alguien que no conoce el término.
 - **Pipeline**: las acciones sobre un post (editar, descartar, descargar la imagen, editar el post completo) no son claras/discoverable — falta affordance visual.
 - **Calendario**: no es evidente cómo o cuándo un post queda "adjunto" a una fecha en la grilla, ni si la vista está bien pensada para el flujo real de trabajo.
@@ -311,23 +317,25 @@ Este mismo archivo sirve como **skill en Cowork** (Fase 0-A) y como **contexto e
 |---|---|
 | Claude API (Sonnet, ~200 lotes+análisis) | $20–60 |
 | Imágenes (~400–600/mes) | $10–40 |
-| VPS Postiz (Hetzner) | $4–8 (o $0 en Oracle free tier) |
+| Publicación (Graph API de Meta directo) | $0 — sin VPS, sin servicio de terceros |
 | Netlify | $0 (free tier alcanza en v1) |
 | Netlify DB + Blobs | Incluido en el plan de Netlify (free tier al inicio) |
-| Metricool | $0 (free) → $18–45 al escalar |
+| Metricool | $0 (free, sin API) → **plan Advanced/Custom obligatorio para tener acceso a API** (precio a confirmar) — bloqueante real de la Fase 4, ver Riesgos |
 | Dominio | ~$1/mes (ya tienes GoDaddy) |
-| **Total** | **~$35–180/mes** |
+| **Total** | **~$30–100/mes + lo que cueste Metricool Advanced si se decide pagarlo** |
 
 ## 11. Riesgos y Mitigaciones
 
 | Riesgo | Mitigación |
 |---|---|
-| Cambios en límites de Meta API | Postiz absorbe la integración; mantenerlo actualizado |
+| Cambios en límites/permisos de la Graph API de Meta | Al ser integración directa (no Postiz), cualquier cambio de Meta nos afecta a nosotros directo — revisar Meta for Developers changelog periódicamente |
 | Rechazo de calidad por clientes | Human-in-the-loop obligatorio + skill de marca con ejemplos reales |
 | Sobre-ingeniería antes de facturar | Fase 0-A opera en Cowork desde el día 1 |
-| Fuga de credenciales | §7 completo; OAuth siempre; nada en el repo |
-| Postiz caído (VPS) | Backups semanales del volumen Docker; los posts quedan en Netlify DB y se re-programan |
+| Fuga de credenciales | §7 completo; nada en el repo; Page Access Token de Meta vive en la DB, no en el frontend |
+| Page Access Token de Meta expira (~60 días) | Renovación manual por el usuario vía Meta for Developers; sin esto, `publish-due-posts.ts` empieza a fallar silenciosamente — falta alerta automática (backlog) |
 | Costos de imagen se disparan | Imagen 4 Fast (~$0.02) para volumen; Nano Banana solo para piezas clave |
+| **Metricool API bloqueada en free tier** (descubierto 2026-07-22) | Fase 4 queda con código listo pero inactivo hasta decidir pagar el plan Advanced/Custom, o buscar otra fuente de métricas |
+| **Oracle Always Free sin capacidad / cuenta limitada a 1 región** (descubierto 2026-07-22) | Causa por la que se abandonó Postiz/VPS; no reintentar esa vía salvo que cambien las circunstancias |
 
 ## 12. Primeros Prompts para Claude Code (copiar/pegar)
 

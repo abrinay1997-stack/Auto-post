@@ -10,7 +10,7 @@ const json = (statusCode: number, body: unknown) =>
   })
 
 // Estados que se pueden fijar a mano desde el dashboard (PATCH). 'scheduled'/'published'/'failed' los fija
-// el sistema (schedule-post.ts / postiz-webhook.ts) — permitirlos aquí saltaría Postiz por completo.
+// el sistema (schedule-post.ts / publish-due-posts.ts) — permitirlos aquí saltaría la publicación real.
 const PATCHABLE_STATUSES = ['draft', 'image_pending', 'pending_approval', 'approved', 'archived']
 
 export default async (req: Request) => {

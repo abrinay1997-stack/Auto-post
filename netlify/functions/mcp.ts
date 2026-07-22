@@ -59,7 +59,7 @@ function buildServer() {
   server.registerTool(
     'update_post_status',
     {
-      description: `Cambia el estado de un post. Estados permitidos: ${PATCHABLE_STATUSES.join(', ')}. No permite fijar 'scheduled'/'published'/'failed' — esos los pone el sistema al programar/publicar de verdad vía Postiz.`,
+      description: `Cambia el estado de un post. Estados permitidos: ${PATCHABLE_STATUSES.join(', ')}. No permite fijar 'scheduled'/'published'/'failed' — esos los pone el sistema al programar/publicar de verdad vía la Graph API de Meta.`,
       inputSchema: {
         post_id: z.string(),
         status: z.enum(PATCHABLE_STATUSES),

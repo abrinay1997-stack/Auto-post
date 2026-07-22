@@ -51,7 +51,7 @@ export default async (req: Request) => {
     const store = getStore('post-images')
     await store.set(post_id, arrayBuffer, { metadata: { contentType: mimeType } })
 
-    // URL absoluta: Postiz (servicio externo) necesita poder descargarla, una ruta relativa no le sirve.
+    // URL absoluta: la Graph API de Meta necesita poder descargarla, una ruta relativa no le sirve.
     const imageUrl = `${new URL(req.url).origin}/api/images/${post_id}`
     const [updated] = await db.sql`
       UPDATE posts SET image_urls = ${[imageUrl]}, status = 'pending_approval'
