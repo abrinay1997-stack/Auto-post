@@ -13,6 +13,11 @@ function PostCard({ post, onChange }: { post: Post; onChange: (post: Post) => vo
   const [copyText, setCopyText] = useState(post.copy_text)
   const [error, setError] = useState<string | null>(null)
 
+  // Re-sincroniza si el copy cambió por fuera (ej. "Regenerar copy"), si no el textarea se queda con el texto viejo.
+  useEffect(() => {
+    setCopyText(post.copy_text)
+  }, [post.copy_text])
+
   const run = async (label: string, action: () => Promise<Post>) => {
     setBusy(label)
     setError(null)
