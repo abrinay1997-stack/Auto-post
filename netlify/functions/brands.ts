@@ -37,7 +37,7 @@ export default async (req: Request) => {
 
     if (req.method === 'PUT') {
       if (!id) return json(400, { ok: false, error: 'Falta el parámetro id' })
-      const { name, voice_profile, visual_profile, audience, hashtag_sets } = await req.json()
+      const { name, voice_profile, visual_profile, audience, hashtag_sets, metricool_blog_id } = await req.json()
 
       const [brand] = await db.sql`
         UPDATE brands SET
@@ -45,7 +45,8 @@ export default async (req: Request) => {
           voice_profile = COALESCE(${voice_profile ?? null}, voice_profile),
           visual_profile = COALESCE(${visual_profile ?? null}, visual_profile),
           audience = COALESCE(${audience ?? null}, audience),
-          hashtag_sets = COALESCE(${hashtag_sets ?? null}, hashtag_sets)
+          hashtag_sets = COALESCE(${hashtag_sets ?? null}, hashtag_sets),
+          metricool_blog_id = COALESCE(${metricool_blog_id ?? null}, metricool_blog_id)
         WHERE id = ${id}
         RETURNING *
       `

@@ -262,11 +262,11 @@ Netlify DB y Netlify Blobs se auto-provisionan en el deploy — no requieren var
 - **Criterio**: post aprobado en dashboard aparece publicado en IG del cliente piloto sin tocar nada más. (No probado en vivo — depende del VPS de Postiz, ver Fase 0-B.)
 
 ### Fase 4 — Métricas y análisis viral (Semana 7–8)
-- [ ] `sync-metrics.ts` (scheduled diaria): Metricool/Postiz → `post_metrics`.
-- [ ] `analyze-brand.ts` (semanal): Claude analiza top posts, comentarios y patrones → escribe `brand_insights` → esos insights se inyectan en el prompt de `generate-batch` (el sistema aprende).
-- [ ] `weekly-report.ts`: reporte HTML por cliente vía Resend cada lunes.
-- [ ] Panel de métricas en dashboard (engagement por post, evolución, mejores horarios).
-- **Criterio**: el prompt de generación de la semana N+1 cita automáticamente qué funcionó en la semana N.
+- [x] `sync-metrics.ts` (scheduled diaria, `0 6 * * *`): Metricool (`/explore/posts/{blogId}`, auth `X-Mc-Auth`) → `post_metrics`, matching por fecha de publicación. Requiere columna nueva `brands.metricool_blog_id` (migración `20260722000000_add_metricool_blog_id`). Endpoint/campos de Metricool no verificados en vivo — ajustar si la respuesta real difiere de lo documentado en su Swagger.
+- [x] `analyze-brand.ts` (scheduled semanal, lunes `0 8 * * 1`): Claude analiza top posts de los últimos 7 días por `engagement_rate` → escribe `brand_insights`. `generate-batch.ts` ahora inyecta los últimos 3 insights de la marca en el prompt.
+- [x] `weekly-report.ts` (scheduled lunes `0 9 * * 1`): reporte HTML por marca vía Resend (`WEEKLY_REPORT_TO`/`WEEKLY_REPORT_FROM` — el remitente debe ser un dominio verificado en Resend).
+- [x] Panel de métricas real en `src/pages/Metrics.tsx`: engagement por post, mejores horarios, aprendizajes recientes.
+- **Criterio**: el prompt de generación de la semana N+1 cita automáticamente qué funcionó en la semana N. ✅ implementado (pendiente validar en vivo con datos reales de Metricool).
 
 ### Fase 5 — v2 (backlog, no ahora)
 Meta Ads escritura asistida (campañas en PAUSED desde insights), ElevenLabs para voz de videos, portal de aprobación para clientes, multi-operador, Reels automatizados.

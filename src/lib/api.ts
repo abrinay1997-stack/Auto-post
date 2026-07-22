@@ -69,4 +69,33 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ post_id, scheduled_at }),
     }).then((d) => d.post),
+  getMetrics: (brand_id: string) =>
+    request<{ perPost: PostMetric[]; bestTimes: BestTime[]; insights: BrandInsight[] }>(
+      `/metrics?brand_id=${brand_id}`,
+    ),
+}
+
+export interface PostMetric {
+  id: string
+  copy_text: string
+  published_at: string
+  likes: number
+  comments: number
+  shares: number
+  reach: number
+  impressions: number
+  engagement_rate: number | null
+}
+
+export interface BestTime {
+  weekday: number
+  hour: number
+  avg_engagement: number
+  sample_size: number
+}
+
+export interface BrandInsight {
+  insight_type: string
+  content: { viral_pattern?: string; recommendation?: string; top_hashtags?: string[] }
+  created_at: string
 }

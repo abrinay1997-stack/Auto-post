@@ -29,7 +29,19 @@ export default async (req: Request) => {
   const [brand] = await db.sql`SELECT * FROM brands WHERE id = ${brand_id}`
   if (!brand) return json(404, { ok: false, error: 'Marca no encontrada' })
 
+  const insights = await db.sql`
+    SELECT insight_type, content FROM brand_insights
+    WHERE brand_id = ${brand_id}
+    ORDER BY created_at DESC
+    LIMIT 3
+  `
+
   const anthropic = new Anthropic({ apiKey })
+
+  const insightsBlock =
+    insights.length > 0
+      ? `\nAprendizajes de lotes anteriores (qué funcionó, úsalo para orientar este lote): ${JSON.stringify(insights.map((i) => i.content))}\n`
+      : ''
 
   const prompt = `Eres el redactor de contenido de la marca "${brand.name}".
 
@@ -37,7 +49,7 @@ Perfil de voz: ${JSON.stringify(brand.voice_profile)}
 Perfil visual: ${JSON.stringify(brand.visual_profile)}
 Público: ${JSON.stringify(brand.audience)}
 Hashtags disponibles: ${JSON.stringify(brand.hashtag_sets)}
-
+${insightsBlock}
 Brief de esta tanda: ${brief}
 
 Genera ${count} posts para redes sociales siguiendo la voz de la marca. Responde SOLO con un array JSON válido, sin texto adicional, donde cada elemento tiene esta forma exacta:
