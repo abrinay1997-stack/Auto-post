@@ -274,6 +274,13 @@ Meta Ads escritura asistida (campañas en PAUSED desde insights), ElevenLabs par
 ### Fase 4.5 — Servidor MCP para Cowork (2026-07-22) ✅
 Adelantada del backlog a pedido del usuario: Auto Post expone `/api/mcp` como custom connector remoto (`list_brands`, `list_posts`, `get_post`, `update_post_status`), para que desde una conversación de Cowork se pueda traer contenido aprobado y pasarlo al conector de Meta Ads (que vive en Cowork, no en Auto Post) para armar campañas — siempre en PAUSED/manual, sin que Auto Post publique anuncios por su cuenta. Ver detalle en `CLAUDE.md` → "Servidor MCP".
 
+### Pendiente — Pulido UX/UI (2026-07-22, feedback del usuario, deliberadamente pospuesto)
+El usuario probó el dashboard y encontró varios puntos de fricción reales. Se deja anotado para un pase dedicado DESPUÉS de terminar Postiz y Metricool (decisión explícita del usuario: primero cerrar la construcción, después pulir UX/UI):
+- **Marcas**: no hay forma de editar ni borrar una marca desde el dashboard (solo crear). El campo "slug" no tiene explicación visible para alguien que no conoce el término.
+- **Pipeline**: las acciones sobre un post (editar, descartar, descargar la imagen, editar el post completo) no son claras/discoverable — falta affordance visual.
+- **Calendario**: no es evidente cómo o cuándo un post queda "adjunto" a una fecha en la grilla, ni si la vista está bien pensada para el flujo real de trabajo.
+- **Métricas**: la utilidad y lectura del panel no es evidente todavía (posiblemente porque no hay datos reales aún, pero revisar de todas formas).
+
 ## 9. Plantilla de Identidad de Marca (`brands/cliente/brand.md`)
 
 ```markdown
