@@ -1,3 +1,5 @@
+import { clearToken, getToken } from './auth'
+
 export interface Brand {
   id: string
   name: string
@@ -35,10 +37,19 @@ export interface Post {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken()
   const res = await fetch(`/api${path}`, {
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   })
+  if (res.status === 401) {
+    clearToken()
+    window.location.reload()
+    throw new Error('Sesión expirada')
+  }
   const data = await res.json()
   if (!res.ok || data.ok === false) throw new Error(data.error ?? `Error ${res.status}`)
   return data

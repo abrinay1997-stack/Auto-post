@@ -1,4 +1,5 @@
 import { getDatabase } from '@netlify/database'
+import { isAuthorized, unauthorized } from './lib/auth'
 
 const db = getDatabase()
 
@@ -13,6 +14,8 @@ const json = (statusCode: number, body: unknown) =>
 const PATCHABLE_STATUSES = ['draft', 'image_pending', 'pending_approval', 'approved', 'archived']
 
 export default async (req: Request) => {
+  if (!isAuthorized(req)) return unauthorized()
+
   try {
     const url = new URL(req.url)
     const id = url.searchParams.get('id')

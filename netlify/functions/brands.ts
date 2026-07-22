@@ -1,4 +1,5 @@
 import { getDatabase } from '@netlify/database'
+import { isAuthorized, unauthorized } from './lib/auth'
 
 const db = getDatabase()
 
@@ -9,6 +10,8 @@ const json = (statusCode: number, body: unknown) =>
   })
 
 export default async (req: Request) => {
+  if (!isAuthorized(req)) return unauthorized()
+
   const url = new URL(req.url)
   const id = url.searchParams.get('id')
 

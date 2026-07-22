@@ -1,5 +1,6 @@
 import { getDatabase } from '@netlify/database'
 import Anthropic from '@anthropic-ai/sdk'
+import { isAuthorized, unauthorized } from './lib/auth'
 
 const db = getDatabase()
 
@@ -19,6 +20,7 @@ interface GeneratedPost {
 
 export default async (req: Request) => {
   if (req.method !== 'POST') return json(405, { ok: false, error: 'Método no soportado' })
+  if (!isAuthorized(req)) return unauthorized()
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY
